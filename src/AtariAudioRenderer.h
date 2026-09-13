@@ -58,7 +58,10 @@ public:
 	// use GetSubsongDurationSample() upfront to get exact amount of samples.
 	virtual void AudioRender(int16_t* buffer, uint32_t count) = 0;
 
-	// Helper time unity convert functions
+	// Fast forward into the music. Doesn't output data, but perform full emulation
+	void FastForward(uint32_t count) { AudioRender(nullptr, count); }
+
+	// Helper time unit convert functions
 	uint32_t SampleToMs(uint32_t sample) const;
 	uint32_t MsToSample(uint32_t ms) const;
 

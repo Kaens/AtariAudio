@@ -214,6 +214,8 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 			}
 		}
 		break;
+		default:
+			break;
 	}
 
 	if (ret)

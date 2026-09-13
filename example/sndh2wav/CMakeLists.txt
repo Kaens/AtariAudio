@@ -5,7 +5,7 @@ add_executable(sndh2wav)
 
 target_sources(sndh2wav
     PRIVATE
-        ../../src/external/ice_24.c
+        ../../src/external/ice_24.cpp
         ../../src/external/lzh.cpp
         ../../src/external/Musashi/m68k.cpp
         ../../src/external/Musashi/m68kcpu.cpp

@@ -54,9 +54,6 @@
     <ClCompile Include="..\..\src\external\Musashi\m68kops.cpp">
       <Filter>Source Files\AtariAudio\external\musashi</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\external\ice_24.c">
-      <Filter>Source Files\AtariAudio\external</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\external\Musashi\m68kcpu.cpp">
       <Filter>Source Files\AtariAudio\external\musashi</Filter>
     </ClCompile>
@@ -68,6 +65,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\AtariAudioRenderer.cpp">
       <Filter>Source Files\AtariAudio</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\external\ice_24.cpp">
+      <Filter>Source Files\AtariAudio\external</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

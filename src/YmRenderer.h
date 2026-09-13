@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------
-	Atari Audio Library v1.20
+	Atari Audio Library v1.21
 	Small & accurate ATARI-ST audio emulation
 	Arnaud Carré aka Leonard/Oxygene
 	@leonard_coder
@@ -23,19 +23,6 @@ public:
 	void MuteVoices(uint32_t muteVoiceMask);
 
 private:
-	enum class eYmType
-	{
-		eUnknown,
-		eYM2a,
-		eYM3a,
-		eYM3b,
-		eYM4a,
-		eYM5a,
-		eYM6a,
-		eMIX1,
-		eYMT1,
-		eYMT2,
-	};
 
     // Private constructors prevent direct instantiation
     YmRenderer();
@@ -43,20 +30,21 @@ private:
     YmRenderer(const YmRenderer&) = delete;            // Prevent copy construction
     YmRenderer& operator=(const YmRenderer&) = delete; // Prevent copy assignment
 
-	enum
+	enum class eYmType
 	{
-		e_YM2a = ('Y' << 24) | ('M' << 16) | ('2' << 8) | ('!'),	//'YM2!'
-		e_YM3a = ('Y' << 24) | ('M' << 16) | ('3' << 8) | ('!'),	//'YM3!'
-		e_YM3b = ('Y' << 24) | ('M' << 16) | ('3' << 8) | ('b'),	//'YM3b'
-		e_YM4a = ('Y' << 24) | ('M' << 16) | ('4' << 8) | ('!'),	//'YM4!'
-		e_YM5a = ('Y' << 24) | ('M' << 16) | ('5' << 8) | ('!'),	//'YM5!'
-		e_YM6a = ('Y' << 24) | ('M' << 16) | ('6' << 8) | ('!'),	//'YM6!'
-		e_MIX1 = ('M' << 24) | ('I' << 16) | ('X' << 8) | ('1'),	//'MIX1'
-		e_YMT1 = ('Y' << 24) | ('M' << 16) | ('T' << 8) | ('1'),	//'YMT1'
-		e_YMT2 = ('Y' << 24) | ('M' << 16) | ('T' << 8) | ('2'),	//'YMT2'
+		eUnknown = 0,
+		eYM2a = ('Y' << 24) | ('M' << 16) | ('2' << 8) | ('!'),	//'YM2!'
+		eYM3a = ('Y' << 24) | ('M' << 16) | ('3' << 8) | ('!'),	//'YM3!'
+		eYM3b = ('Y' << 24) | ('M' << 16) | ('3' << 8) | ('b'),	//'YM3b'
+		eYM4a = ('Y' << 24) | ('M' << 16) | ('4' << 8) | ('!'),	//'YM4!'
+		eYM5a = ('Y' << 24) | ('M' << 16) | ('5' << 8) | ('!'),	//'YM5!'
+		eYM6a = ('Y' << 24) | ('M' << 16) | ('6' << 8) | ('!'),	//'YM6!'
+		eMIX1 = ('M' << 24) | ('I' << 16) | ('X' << 8) | ('1'),	//'MIX1'
+		eYMT1 = ('Y' << 24) | ('M' << 16) | ('T' << 8) | ('1'),	//'YMT1'
+		eYMT2 = ('Y' << 24) | ('M' << 16) | ('T' << 8) | ('2'),	//'YMT2'
 	};
 
-	enum eYmFxType
+	enum class eYmFxType
 	{
 		eNone,
 		eSid,
@@ -67,16 +55,20 @@ private:
 
 	struct YmFx
 	{
-		eYmFxType type = eNone;
+		eYmFxType type = eYmFxType::eNone;
+		const uint8_t* sample;
 		int ymVoice;
-		uint32_t fxPhase;
+			uint32_t fxPhase;
+		uint32_t sampleLen;
 		uint8_t sidVol;
 		uint8_t syncBuzzShape;
-		int drumId;
 	};
 
 
 	void PlayerTick();
+	void Ym2DriverTick();
+	void Ym356DriverTick();
+	void YmTrackerDriverTick();
 	void SetTimer(int slot, int prediv, int count);
 	uint32_t YmFxDecode(int fxSlot, int regCode, int regPrediv, int regCount);
 	int16_t ComputeNextSample(void);

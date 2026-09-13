@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------
-	Atari Audio Library v1.20
+	Atari Audio Library v1.21
 	Small & accurate ATARI-ST audio emulation
 	Arnaud Carré aka Leonard/Oxygene
 	@leonard_coder
@@ -9,6 +9,7 @@
 #include <assert.h>
 #include "YmRenderer.h"
 #include "external/lzh.h"
+#include "ym2data.h"
 
 #define	D_DBG_OUTPUT				0
 
@@ -103,18 +104,19 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 	uint32_t ymClock = Ym2149c::kDefaultAtariYmClock;
 
 	const char* r8 = (const char*)si.rawBinaryData;
-	const uint32_t sign = ReadBE32(r8);
+	const eYmType sign = eYmType(ReadBE32(r8));
 	switch (sign)
 	{
-		case e_YM3a:
-		case e_YM3b:
+		case eYmType::eYM2a:
+		case eYmType::eYM3a:
+		case eYmType::eYM3b:
 		{
 			m_dataStreamStride = 14;
 			m_flags = 1;		// interleaved
 			m_subSongLenInTick[0] = (si.rawBinaryDataSize-4) / m_dataStreamStride; // -4 for header
 			si.playerTickRate = 50;
 			m_songLoopTick = 0;
-			m_ymType = (e_YM3a == sign) ? eYmType::eYM3a : eYmType::eYM3b;
+			m_ymType = sign;
 			m_dataStream = (const uint8_t *)r8 + 4;
 			if (eYmType::eYM3b == m_ymType)
 			{
@@ -125,8 +127,8 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 			ret = true;
 		}
 		break;
-		case e_YM5a://'YM5!':		// Extended YM2149 format, all machines.
-		case e_YM6a://'YM6!':		// Extended YM2149 format, all machines.
+		case eYmType::eYM5a://'YM5!':		// Extended YM2149 format, all machines.
+		case eYmType::eYM6a://'YM6!':		// Extended YM2149 format, all machines.
 		{
 			if (0 == strncmp(r8 + 4, "LeOnArD!", 8))
 			{
@@ -165,7 +167,7 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 					m_dataStream = (const uint8_t *)r8;
 					m_dataStreamStride = 16;
 
-					m_ymType = (e_YM5a == sign) ? eYmType::eYM5a : eYmType::eYM6a;
+					m_ymType = sign;
 					m_samplePerTick = si.hostReplayRate / si.playerTickRate;
 					m_songDurationSample = m_subSongLenInTick[0] * m_samplePerTick;
 					ret = true;
@@ -173,7 +175,7 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 			}
 		}
 		break;
-		case e_MIX1:	// 'YMT1'
+		case eYmType::eMIX1:	// 'YMT1'
 		{
 			m_songInfo.playerTickRate = 50;
 			r8 += 12;
@@ -203,8 +205,8 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 				si.converter = r8;
 				r8 = AUskipNTString(r8);
 				m_mixBank = (const uint8_t*)r8;
-				m_ymType = eYmType::eMIX1;
 				m_mixFrac = 0;
+				m_ymType = sign;
 				m_mixPatternPos = 0;
 				m_mixCurrentRepeat = m_samples[0].repeat;
 				m_mixSamplePos = 0;
@@ -281,7 +283,6 @@ int16_t YmRenderer::ComputeNextSample()
 	int16_t out = 0;
 	if (eYmType::eMIX1 != m_ymType)
 	{
-
 		out = m_ym2149.ComputeNextSample();
 
 		// tick 2 Atari timers, maybe one of them is running
@@ -290,29 +291,28 @@ int16_t YmRenderer::ComputeNextSample()
 			if (m_mfp.Tick(t))
 			{
 				YmFx& fx = m_ymFx[t];
-				if (eSid == fx.type)
+				if (eYmFxType::eSid == fx.type)
 				{
 					fx.fxPhase++;
 					const uint8_t r = (fx.fxPhase & 1)?fx.sidVol : 0;
 					YmWrite(fx.ymVoice + 8, r);
 				}
-				else if (eSyncBuzzer == fx.type)
+				else if (eYmFxType::eSyncBuzzer == fx.type)
 				{
 					YmWrite(13, fx.syncBuzzShape);
 				}
-				else if (eDigidrum == fx.type)
+				else if (eYmFxType::eDigidrum == fx.type)
 				{
-					const YmSample& smp = m_samples[fx.drumId];
-					if (fx.fxPhase < smp.len)
+					if (fx.fxPhase < fx.sampleLen)
 					{
-						YmWrite(fx.ymVoice + 8, smp.data[fx.fxPhase] & 15);
+						YmWrite(fx.ymVoice + 8, fx.sample[fx.fxPhase]);
 						fx.fxPhase++;
 					}
 					else
 					{
 						// end digidrum, switch off
 						SetTimer(t, 0, 0);
-						fx.type = eNone;
+						fx.type = eYmFxType::eNone;
 					}
 				}
 			}
@@ -398,25 +398,29 @@ uint32_t YmRenderer::YmFxDecode(int fxSlot, int regCode, int regPrediv, int regC
 		switch (code & 0xc0)
 		{
 			case 0x00:		// SID
-				fx.type = eSid;
+				fx.type = eYmFxType::eSid;
 				fx.sidVol = ReadInterleaved(fx.ymVoice + 8) & 15;
 				skipMask = 1 << (fx.ymVoice + 8);
 				SetTimer(fxSlot, prediv, count);
 				break;
 
 			case 0x40:		// DigiDrum
-				fx.drumId = ReadInterleaved(fx.ymVoice + 8) & 31;
-				if ((fx.drumId>=0) && (fx.drumId<m_sampleCount))
 				{
-					fx.type = eDigidrum;
-					skipMask = 1 << (fx.ymVoice + 8);
-					fx.fxPhase = 0;
-					SetTimer(fxSlot, prediv, count);
+					int drumId = ReadInterleaved(fx.ymVoice + 8) & 31;
+					if ((drumId >= 0) && (drumId < m_sampleCount))
+					{
+						fx.type = eYmFxType::eDigidrum;
+						fx.sample = m_samples[drumId].data;
+						fx.sampleLen = m_samples[drumId].len;
+						skipMask = 1 << (fx.ymVoice + 8);
+						fx.fxPhase = 0;
+						SetTimer(fxSlot, prediv, count);
+					}
 				}
 				break;
 
 			case 0xc0:		// Sync-Buzzer.
-				fx.type = eSyncBuzzer;
+				fx.type = eYmFxType::eSyncBuzzer;
 				fx.syncBuzzShape = ReadInterleaved(fx.ymVoice + 8) & 15;
 				SetTimer(fxSlot, prediv, count);
 				break;
@@ -429,12 +433,15 @@ uint32_t YmRenderer::YmFxDecode(int fxSlot, int regCode, int regPrediv, int regC
 	else
 	{
 		// no fx, if a fx was running, switch off timer (except for digidrum, they stop by themself)
-		if (fx.type != eDigidrum)
+		if (fx.type != eYmFxType::eDigidrum)
 		{
 			SetTimer(fxSlot, 0, 0);
-			fx.type = eNone;
+			fx.type = eYmFxType::eNone;
 		}
 	}
+
+	if (fx.type == eYmFxType::eDigidrum)
+		skipMask |= 1 << (fx.ymVoice + 8);
 
 	return skipMask;
 }
@@ -447,39 +454,52 @@ uint8_t YmRenderer::ReadInterleaved(int reg) const
 	return m_dataStream[m_tick * m_dataStreamStride + reg];
 }
 
-
-void YmRenderer::PlayerTick()
+void YmRenderer::Ym2DriverTick()
 {
 
-	#if D_DBG_OUTPUT
-	int ymRegs[14];
-	for (int r=0;r<14;r++)
-		ymRegs[r] = ReadInterleaved(r);
-
-	int ms = (m_tick * 1000) / m_songInfo.playerTickRate;
-
-	int perB = (ymRegs[3] << 8) | ymRegs[2];
-
-	fprintf(sDbgH, "F%4d (%3d.%03d) : ", m_tick, ms / 1000, ms % 1000);
-	fprintf(sDbgH, "P:$%04x ", perB);
-
-	if (perB > 0)
+	uint32_t skipMask = 0;
+	uint8_t r13 = ReadInterleaved(13);
+	if (r13 != 0xff)
 	{
-		int hz = (2000000 / 8) / perB;
-		fprintf(sDbgH, "(%4d Hz) ", hz);
+		YmWrite(11,ReadInterleaved(11));
+		YmWrite(12,0);
+		YmWrite(13, 10);
 	}
 
-	fprintf(sDbgH, "V:$%02x", ymRegs[9]);
-	if ( ymRegs[9]&0x10)
-		fprintf(sDbgH, "(E) ");
-	else
-		fprintf(sDbgH, "    ");
+	YmFx& fx = m_ymFx[0];
+	uint8_t r10 = ReadInterleaved(10);
+	if (r10 & 0x80)
+	{
+		r10 &= 0x7f;
+		uint8_t r12 = ReadInterleaved(12);
+		if ((r12) && (r10 < 40))
+		{
+			// digidrum
+			fx.type = eYmFxType::eDigidrum;
+			fx.fxPhase = 0;
+			fx.sample = ym2Bank+ym2BankOffsets[r10];
+			fx.sampleLen = ym2BankLens[r10];
+			SetTimer(0, 1, r12);
+			fx.ymVoice = 2;
+		}
+	}
 
-	fprintf(sDbgH, "ENV: $%04x S:$%02x", (ymRegs[12] << 8) | ymRegs[11], ymRegs[13]);
+	if (fx.type == eYmFxType::eDigidrum)
+	{
+		YmWrite(7, ReadInterleaved(7)|0x24);
+		skipMask |= (1 << 7)|(1 << (fx.ymVoice + 8));
+	}
 
-	fprintf(sDbgH, "\n");
+	// send data to YM
+	for (int r = 0; r <= 10; r++)
+	{
+		if (0 == (skipMask&(1 << r)))
+			YmWrite(r, ReadInterleaved(r));
+	}
+}
 
-	#endif
+void YmRenderer::Ym356DriverTick()
+{
 	uint32_t skipMask = 0;
 	if ((eYmType::eYM5a == m_ymType) || (eYmType::eYM6a == m_ymType))
 	{
@@ -491,7 +511,7 @@ void YmRenderer::PlayerTick()
 	uint8_t r7 = ReadInterleaved(7);
 	for (int fx = 0; fx < 2; fx++)
 	{
-		if (m_ymFx[fx].type == eDigidrum)
+		if (m_ymFx[fx].type == eYmFxType::eDigidrum)
 			r7 |= ((1 << 0) | (1 << 3)) << m_ymFx[fx].ymVoice;
 	}
 	YmWrite(7, r7);
@@ -516,6 +536,31 @@ void YmRenderer::PlayerTick()
 	uint8_t r13 = ReadInterleaved(13);
 	if (r13 != 0xff)
 		YmWrite(13, r13);
+}
+
+void YmRenderer::YmTrackerDriverTick()
+{
+}
+
+void YmRenderer::PlayerTick()
+{
+
+	switch (m_ymType)
+	{
+		case eYmType::eYM2a:
+			Ym2DriverTick();
+			break;
+		case eYmType::eYM3a:
+		case eYmType::eYM3b:
+		case eYmType::eYM5a:
+		case eYmType::eYM6a:
+			Ym356DriverTick();
+			break;
+		case eYmType::eMIX1:	// on purpose no call, there is no player tick for YM "digimix"
+			break;
+		default:
+			break;
+	}
 
 	// next ym music frame
 	m_tick++;

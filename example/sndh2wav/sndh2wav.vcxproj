@@ -158,6 +158,7 @@
     <ClInclude Include="..\..\src\timedb.h" />
     <ClInclude Include="..\..\src\ym2149c.h" />
     <ClInclude Include="..\..\src\ym2149_tables.h" />
+    <ClInclude Include="..\..\src\ym2data.h" />
     <ClInclude Include="..\..\src\YmRenderer.h" />
     <ClInclude Include="wavwriter.h" />
   </ItemGroup>

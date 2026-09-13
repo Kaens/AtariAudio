@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------
-	Atari Audio Library v1.20
+	Atari Audio Library v1.21
 	Small & accurate ATARI-ST audio emulation
 	Arnaud Carré aka Leonard/Oxygene
 	@leonard_coder
@@ -48,16 +48,31 @@ AtariAudioRenderer::eFileType AtariAudioRenderer::QuickFileTypeCheck(const void*
 {
 	if (rawSize > 16)
 	{
+		// check packed file
 		if (LzhDepacker::IsLzhPacked(rawMemory, rawSize))
-			return eFileType::eYm;
-
-		if (0 == strncmp(((const char*)rawMemory) + 4, "LeOnArD!", 8))
 			return eFileType::eYm;
 
 		if (ice_24_header((unsigned char*)rawMemory))
 			return eFileType::eSndh;
 
+		// check unpacked input file
+		if (0 == strncmp(((const char*)rawMemory) + 4, "LeOnArD!", 8))
+			return eFileType::eYm;
+
 		const char* read8 = (const char*)rawMemory;
+		static const char* sSigns[] =
+		{
+			"YM2!","YM3!","YM3b","YM5!","YM6!","MIX1",
+			nullptr
+		};
+		const char** pr = sSigns;
+		while (*pr)
+		{
+			if ( 0 == strncmp(*pr, read8, 4))
+				return eFileType::eYm;
+			pr++;
+		}
+
 		if ((0x60 == read8[0]) && (0 == strncmp(read8 + 12, "SNDH", 4)))
 			return eFileType::eSndh;
 	}

@@ -125,6 +125,9 @@
     <ClInclude Include="..\..\src\AtariAudioRenderer.h">
       <Filter>Source Files\AtariAudio</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ym2data.h">
+      <Filter>Source Files\AtariAudio</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\src\external\Musashi\m68k_func.inc">

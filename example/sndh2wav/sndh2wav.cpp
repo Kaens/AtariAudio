@@ -216,11 +216,11 @@ int main(int argc, char* argv[])
 	void* sndhFileBuffer = LoadFile(argv[1], sndhFileSize);
 	if ( sndhFileBuffer )
 	{
-		WavWriter wavWriter;
-		if (wavWriter.Open(argv[2], kHostReplayRate, 1))
+		AtariAudioRenderer* ar = AtariAudioRenderer::Create(sndhFileBuffer, sndhFileSize, kHostReplayRate);
+		if (ar)
 		{
-			AtariAudioRenderer* ar = AtariAudioRenderer::Create(sndhFileBuffer, sndhFileSize, kHostReplayRate);
-			if (ar)
+			WavWriter wavWriter;
+			if (wavWriter.Open(argv[2], kHostReplayRate, 1))
 			{
 				const AtariAudioRenderer::SongInfo& si = ar->GetSongInfo();
 				printf("\"%s\" by %s\n", si.musicName, si.musicAuthor);
@@ -248,9 +248,13 @@ int main(int argc, char* argv[])
 						}
 					}
 				}
-				AtariAudioRenderer::Destroy(ar);
+				wavWriter.Close();
 			}
-			wavWriter.Close();
+			AtariAudioRenderer::Destroy(ar);
+		}
+		else
+		{
+			printf("ERROR: %s is not supported by AtariAudio\n", argv[1]);
 		}
 	}
 	return 0;

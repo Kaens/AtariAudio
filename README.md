@@ -39,6 +39,7 @@ Destroy SndhRenderer object and free any internal allocated memory
 
 # Versions
 
+- 1.20 : AtariAudio now supports both .sndh and .ym music files!
 - 1.10 : AtariAudio is now fully thread safe! (Use a custom Musashi 68k emulation version)
 - 1.09 : API refactor and MuteVoices function added
 - 1.08 : more robust API

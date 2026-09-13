@@ -58,6 +58,8 @@ The repo also contains a sndh2wav project to show how to convert a .sndh file in
 
 [BZR Player 2](https://github.com/aargirakis/BZRPlayer) - Audio player for Windows and Linux supporting a wide array of multi-platform exotic file formats
 
+[rePlayer](https://github.com/arnaud-neny/rePlayer) - "another multi-formats music player"
+
 # Credits
 
 - AtariAudio library written by Arnaud Carré aka Leonard/Oxygene.

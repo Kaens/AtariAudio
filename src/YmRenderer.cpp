@@ -290,6 +290,7 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 		si.subsongCount = 1;
 		si.defaultSubsong = 1;
 		si.fileType = eFileType::eYm;
+		si.fileFormat = GetFileFormatString();
 	}
 
 	return ret;
@@ -754,4 +755,23 @@ void	YmRenderer::AudioRenderInternal(int16_t* buffer, uint32_t count, uint32_t* 
 void YmRenderer::MuteVoices(uint32_t muteVoiceMask)
 {
 	m_ym2149.MuteVoices(muteVoiceMask);
+}
+
+const char* YmRenderer::GetFileFormatString() const
+{
+	switch (m_ymType)
+	{
+		case eYmType::eYM2a: return "YM2";
+		case eYmType::eYM3a: return "YM3a";
+		case eYmType::eYM3b: return "YM3b";
+		case eYmType::eYM4a: return "YM4";
+		case eYmType::eYM5a: return "YM5";
+		case eYmType::eYM6a: return "YM6";
+		case eYmType::eMIX1: return "YM Digimix";
+		case eYmType::eYMT1: return "YM Tracker1";
+		case eYmType::eYMT2: return "YM Tracker2";
+		default:
+			break;
+	}
+	return "";
 }

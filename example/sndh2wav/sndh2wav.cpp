@@ -224,6 +224,7 @@ int main(int argc, char* argv[])
 			{
 				const AtariAudioRenderer::SongInfo& si = ar->GetSongInfo();
 				printf("\"%s\" by %s\n", si.musicName, si.musicAuthor);
+				printf("Format: %s\n", si.fileFormat);
 
 				// Loop over all subsongs
 				for (int s = 1; s <= si.subsongCount; s++)

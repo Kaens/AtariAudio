@@ -84,6 +84,7 @@ private:
 
 	uint16_t StreamBE16(const char** r);
 	uint32_t StreamBE32(const char** r);
+	const char* GetFileFormatString() const;
 
 	Ym2149c m_ym2149;
 	Mk68901 m_mfp;

@@ -37,6 +37,7 @@ AtariAudioRenderer::AtariAudioRenderer()
 	m_songInfo.ripper = sEmptyString;
 	m_songInfo.converter = sEmptyString;
 	m_songInfo.year = sEmptyString;
+	m_songInfo.fileFormat = sEmptyString;
 }
 
 AtariAudioRenderer::~AtariAudioRenderer()

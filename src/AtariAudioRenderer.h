@@ -30,7 +30,7 @@ public:
 		const char* ripper;
 		const char* converter;
 		const char* year;
-
+		const char* fileFormat;
 		const void* rawBinaryData;
 		uint32_t rawBinaryDataSize;
 	};

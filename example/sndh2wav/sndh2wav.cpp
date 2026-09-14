@@ -231,6 +231,7 @@ int main(int argc, char* argv[])
 					uint32_t sampleCount = ar->GetSubsongDurationSample(s);
 					if (0 == sampleCount)
 					{
+						printf("WARNIN: no song duration, using default\n");
 						// a subsong of duration 0 means SNDH file doesn't provide any duration
 						sampleCount = 3*60*kHostReplayRate;		// so decide to play 3 minutes by default
 					}

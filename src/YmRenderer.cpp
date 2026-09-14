@@ -124,6 +124,7 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 				m_songLoopTick = *pr;
 			}
 			m_samplePerTick = si.hostReplayRate / si.playerTickRate;
+			m_songDurationSample = m_subSongLenInTick[0] * m_samplePerTick;
 			ret = true;
 		}
 		break;

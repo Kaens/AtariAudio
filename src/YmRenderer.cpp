@@ -761,15 +761,15 @@ const char* YmRenderer::GetFileFormatString() const
 {
 	switch (m_ymType)
 	{
-		case eYmType::eYM2a: return "YM2";
-		case eYmType::eYM3a: return "YM3a";
-		case eYmType::eYM3b: return "YM3b";
-		case eYmType::eYM4a: return "YM4";
-		case eYmType::eYM5a: return "YM5";
-		case eYmType::eYM6a: return "YM6";
+		case eYmType::eYM2a: return "YM 2";
+		case eYmType::eYM3a: return "YM 3a";
+		case eYmType::eYM3b: return "YM 3b";
+		case eYmType::eYM4a: return "YM 4";
+		case eYmType::eYM5a: return "YM 5";
+		case eYmType::eYM6a: return "YM 6";
 		case eYmType::eMIX1: return "YM Digimix";
-		case eYmType::eYMT1: return "YM Tracker1";
-		case eYmType::eYMT2: return "YM Tracker2";
+		case eYmType::eYMT1: return "YM Tracker 1";
+		case eYmType::eYMT2: return "YM Tracker 2";
 		default:
 			break;
 	}

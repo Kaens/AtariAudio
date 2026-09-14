@@ -1,6 +1,8 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdlib.h>
 #include <stdio.h>
+#include <windows.h>
+#include <time.h>
 #include "../../src/AtariAudio.h"
 #include "wavwriter.h"
 #include <math.h>
@@ -193,10 +195,97 @@ void compute555Table()
 #endif
 
 
+uint32_t fastDirScan(const WCHAR* sDir)
+{
+//	wprintf(L"[%s]\n", sDir);
+
+	uint32_t nb = 0;
+
+	constexpr int kBufferSize = 128 * 1024;
+//	uint8_t sBuffer[kBufferSize];
+
+	void* sBuffer = malloc(kBufferSize);
+
+	HANDLE hDir = CreateFileW(
+        sDir,
+        FILE_LIST_DIRECTORY,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_SEQUENTIAL_SCAN,
+        NULL
+    );
+
+	if (hDir != INVALID_HANDLE_VALUE)
+	{
+
+		FILE_FULL_DIR_INFO* pInfo = reinterpret_cast<FILE_FULL_DIR_INFO *>(sBuffer);
+
+		BOOL success = GetFileInformationByHandleEx(hDir, FileFullDirectoryInfo, sBuffer, kBufferSize);
+		while (success)
+		{
+			FILE_FULL_DIR_INFO* current = pInfo;
+			while (true)
+			{
+				WCHAR sTemp[_MAX_FNAME];
+				int nameLen = static_cast<int>(current->FileNameLength / sizeof(WCHAR));
+				memcpy(sTemp, current->FileName, nameLen * sizeof(WCHAR));
+				sTemp[nameLen] = 0;
+
+				if (current->FileName[0] != L'.')
+				{
+					bool isDir = (current->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+					if ((isDir) && (nameLen<_MAX_PATH))
+					{
+//						wprintf(L"[%s]\n", sTemp);
+						WCHAR sFull[_MAX_PATH];
+						wsprintfW(sFull, L"%s%s\\", sDir, sTemp);
+						nb += fastDirScan(sFull);
+					}
+					else
+					{
+//						wprintf(L"%.*ls\n", nameLen, current->FileName);
+						nb++;
+					}
+				}
+				if (current->NextEntryOffset == 0)
+					break;
+
+				current = reinterpret_cast<FILE_FULL_DIR_INFO *>(reinterpret_cast<BYTE*>(current) + current->NextEntryOffset);
+			}
+#if 0
+			uintptr_t offset = uintptr_t(current)-uintptr_t(sBuffer) + sizeof(FILE_FULL_DIR_INFO) + current->FileNameLength;
+			if (offset < kBufferSize - 8*1024)
+				break;
+#endif
+			// Subsequent calls to continue fetching entries in the same directory
+			success = GetFileInformationByHandleEx(hDir, FileFullDirectoryInfo, sBuffer, kBufferSize);
+		}
+		CloseHandle(hDir);
+	}
+
+	free(sBuffer);
+	return nb;
+}
+
+
+
 int main(int argc, char* argv[])
 {
 
 //	compute555Table();
+
+	clock_t t0 = clock();
+
+	uint32_t nf = fastDirScan(L"C:\\");
+	clock_t t1 = clock();
+	float t = float(t1 - t0) / float(CLOCKS_PER_SEC);
+
+	printf("%d files\n", nf);
+	printf("Time: %.02f\n", t);
+
+	return 0;
+
 
 	printf("sndh2wav, convert atari SNDH music file into a wav\n");
 	printf("Build using AtariAudio library v" ATARI_AUDIO_VERSION "\n");

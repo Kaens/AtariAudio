@@ -5,11 +5,11 @@ The libray doesn't use any dependency, and should compile on any platform, inclu
 
 **NOTE: .ym replay has been totally rewritten and is now cycle accurate. The old StSound library is now deprecated**
 
-**NOTE: Since 1.10 AtariAudio library is thread safe! Any thread could create any amount of SndhRenderer instances. (obviously two different threads can't use the same instance of SndhRenderer)**
+**NOTE: Since 1.10 AtariAudio library is thread safe! Any thread could create any amount of AtariAudioRenderer instances. (obviously two different threads can't use the same instance of AtariAudioRenderer)**
 
 # Playing .SNDH and .YM file in your own app
 
-AtariAudio library doesn't use any file IO. You should provide data from memory. Entry point is SndhRenderer class.
+AtariAudio library doesn't use any file IO. You should provide data from memory. Entry point is AtariAudioRenderer class.
 Look at AtariAudioRenderer.h for API details but here is the absolute minimal:
 
 ````
@@ -32,9 +32,9 @@ Musics doesn't have an end by default, so AudioRender doesn't returns anything. 
 NOTE: some .SNDH files doesn't provide any song duration information. In this case GetSubsongDurationSample() will return 0.
 
 ````
-static void Destroy(SndhRenderer* sr);
+static void Destroy(AtariAudioRenderer* sr);
 ````
-Destroy SndhRenderer object and free any internal allocated memory
+Destroy AtariAudioRenderer object and free any internal allocated memory
 
 
 # Versions

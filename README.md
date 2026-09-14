@@ -1,4 +1,4 @@
-# AtariAudio Library v1.21
+# AtariAudio Library v1.22
 
 src/ contains all files needed to compile AtariAudio library. It allows you to play ATARI .SNDH and .YM music files. You can also directly use YM2149 emulator if you want to write your own YM tracker.
 The libray doesn't use any dependency, and should compile on any platform, including embeded systems (it doesn't even use float )
@@ -39,6 +39,7 @@ Destroy SndhRenderer object and free any internal allocated memory
 
 # Versions
 
+- 1.22 : Add YMT1 & YMT2 support. Now AtariAudio has full coverage of depracted StSound library
 - 1.21 : Add old YM2 support
 - 1.20 : Major update: now supports both .sndh and .ym files. with a brand new rewritten cycle accurate .ym driver
 - 1.10 : AtariAudio is now fully thread safe! (Use a custom Musashi 68k emulation version)

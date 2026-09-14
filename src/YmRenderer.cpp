@@ -153,7 +153,7 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 							smp.data = (const uint8_t*)r8;
 							r8 += smp.len;
 						}
-						if (0 == (m_flags&4))
+						if (0 == (m_flags&kYm4BitsSample))
 							ConvertTo4Bits();
 					}
 
@@ -179,7 +179,11 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 		{
 			m_songInfo.playerTickRate = 50;
 			r8 += 12;
-			m_flags = StreamBE32(&r8);
+			uint32_t tmp = StreamBE32(&r8);
+			m_flags = kYmInterleaved;		// MIX is always interleaved format
+			if (tmp & 1)
+				m_flags |= kYmSignedSample;
+
 			StreamBE32(&r8);			// skip total sample bank size
 			m_sampleCount = StreamBE32(&r8);
 			if (m_sampleCount <= kYmMaxSamples)
@@ -190,12 +194,12 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 					m_samples[i].data = nullptr;
 					m_samples[i].mixStart = StreamBE32(&r8);
 					m_samples[i].len = StreamBE32(&r8);
-					m_samples[i].repeat = StreamBE16(&r8);
-					if (m_samples[i].repeat > 16)
-						m_samples[i].repeat = 16;
+					m_samples[i].mixRepeat = StreamBE16(&r8);
+					if (m_samples[i].mixRepeat > 16)
+						m_samples[i].mixRepeat = 16;
 					m_samples[i].replayRate = StreamBE16(&r8);
 					assert(m_samples[i].replayRate > 0);
-					duration += (uint64_t(m_samples[i].len * m_samples[i].repeat) * m_songInfo.hostReplayRate) / m_samples[i].replayRate;
+					duration += (uint64_t(m_samples[i].len * m_samples[i].mixRepeat) * m_songInfo.hostReplayRate) / m_samples[i].replayRate;
 				}
 				m_songDurationSample = uint32_t(duration);
 				si.musicName = r8;
@@ -204,13 +208,67 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 				r8 = AUskipNTString(r8);
 				si.converter = r8;
 				r8 = AUskipNTString(r8);
-				m_mixBank = (const uint8_t*)r8;
+				m_mixBank = (const int8_t*)r8;	// mix bank is considered as signed
 				m_mixFrac = 0;
 				m_ymType = sign;
 				m_mixPatternPos = 0;
-				m_mixCurrentRepeat = m_samples[0].repeat;
+				m_mixCurrentRepeat = m_samples[0].mixRepeat;
 				m_mixSamplePos = 0;
 				ret = true;
+			}
+		}
+		break;
+		case eYmType::eYMT1:
+		case eYmType::eYMT2:
+		{
+			r8 += 12;
+			m_ymType = sign;
+			m_trkVoiceCount = StreamBE16(&r8);
+			if (m_trkVoiceCount <= kYmMaxTrackerVoices)
+			{
+				si.playerTickRate = StreamBE16(&r8);
+				m_subSongLenInTick[0] = StreamBE32(&r8);
+				m_songLoopTick = StreamBE32(&r8);
+				m_sampleCount = StreamBE16(&r8);
+				m_flags = StreamBE32(&r8);
+				si.musicName = r8;
+				r8 = AUskipNTString(r8);
+				si.musicAuthor = r8;
+				r8 = AUskipNTString(r8);
+				si.converter = r8;
+				r8 = AUskipNTString(r8);
+				if (m_sampleCount <= kYmMaxSamples)
+				{
+					if (m_sampleCount > 0)
+					{
+						for (int s = 0; s < m_sampleCount; s++)
+						{
+							YmSample& smp = m_samples[s];
+							smp.len = StreamBE16(&r8);
+							smp.repPos = 0;
+							if (eYmType::eYMT2 == m_ymType)
+							{
+								smp.repPos = smp.len - StreamBE16(&r8);
+								if (smp.repPos >= smp.len)
+									smp.repPos = 0;
+								StreamBE16(&r8);	// skip useless "flags"
+							}
+							smp.data = (const uint8_t *)r8;
+							r8 += smp.len;
+						}
+						assert(0 == (m_flags & kYm4BitsSample));		// YMT is not supposed to have 4bits samples input data
+					}
+					m_trkFreqShift = 0;
+					if (eYmType::eYMT2 == m_ymType)
+						m_trkFreqShift = (m_flags >> 28) & 15;
+
+					m_dataStream = (const uint8_t *)r8;
+					m_dataStreamStride = m_trkVoiceCount*4;	// 4 bytes per voice in YMT music score
+					m_samplePerTick = si.hostReplayRate / si.playerTickRate;
+					m_songDurationSample = m_subSongLenInTick[0] * m_samplePerTick;
+					memset(m_trkVoices, 0, sizeof(m_trkVoices));
+					ret = true;
+				}
 			}
 		}
 		break;
@@ -226,6 +284,7 @@ bool YmRenderer::Load(const void* rawYmFile, uint32_t ymFileSize, uint32_t hostR
 		if (m_songLoopTick >= m_subSongLenInTick[0])
 			m_songLoopTick = 0;
 
+		m_mixSignXor = (m_flags & kYmSignedSample) ? 0x00 : 0x80;
 		si.ym2149Clock = ymClock;
 		si.subsongCount = 1;
 		si.defaultSubsong = 1;
@@ -273,17 +332,94 @@ bool YmRenderer::InitSubSong(int subSongId)
 
 uint32_t YmRenderer::ComputeCurrentVisualLevels()
 {
-	if (eYmType::eMIX1 != m_ymType)
-		return m_ym2149.ComputeCurrentVisualLevels();
+	if ((eYmType::eMIX1 == m_ymType) ||
+		(eYmType::eYMT1 == m_ymType) ||
+		(eYmType::eYMT2 == m_ymType))
+	{
+		int8_t v = m_mixLastSample >> 1;
+		return uint32_t(v)<<24;
+	}
+	return m_ym2149.ComputeCurrentVisualLevels();
+}
 
-	int8_t v = m_mixLastSample >> 1;
-	return uint32_t(v)<<24;
+int16_t YmRenderer::ComputeNextYmTrackerSample()
+{
+	int32_t out = 0;
+	for (int v = 0; v < m_trkVoiceCount; v++)
+	{
+		YmTrackerVoice& voice = m_trkVoices[v];
+		if ( voice.running )
+		{
+			assert(voice.sampleId < uint32_t(m_sampleCount));
+			const YmSample& smp = m_samples[voice.sampleId];
+			int data = int(int8_t(smp.data[voice.samplePos] ^ 0x80));
+			out += (data * voice.volume)<<(6-6);	// 6 bits because of MUL volume
+
+			voice.innerClock += voice.replayRate;
+			while (voice.innerClock >= m_songInfo.hostReplayRate)	// most of the time it won't loop, but some tunes could imply greater sampling rate than hostReplayRate!
+			{
+				voice.samplePos++;
+				if (voice.samplePos >= smp.len)
+				{
+					voice.samplePos = smp.repPos;
+					if (!voice.loop)
+						voice.running = false;
+				}
+				voice.innerClock -= m_songInfo.hostReplayRate;
+			}
+		}
+	}
+
+	if (out > 32767)
+		out = 32767;
+	else if (out < -32768)
+		out = -32768;
+
+	m_mixLastSample = int8_t(out >> 8);
+
+	return int16_t(out);
+}
+
+int16_t YmRenderer::ComputeNextYmMixSample()
+{
+	// Digimix YM driver
+	const YmSample& smp = m_samples[m_mixPatternPos];
+	m_mixLastSample = (m_mixBank[smp.mixStart + m_mixSamplePos] ^ m_mixSignXor);
+
+	m_mixFrac += smp.replayRate;
+	if (m_mixFrac >= m_songInfo.hostReplayRate)
+	{
+		m_mixSamplePos++;
+		if (m_mixSamplePos >= smp.len)
+		{
+			m_mixSamplePos = 0;
+			m_mixCurrentRepeat--;
+			if (m_mixCurrentRepeat <= 0)
+			{
+				m_mixPatternPos++;
+				if (m_mixPatternPos >= m_sampleCount)
+					m_mixPatternPos = 0;
+
+				m_mixCurrentRepeat = m_samples[m_mixPatternPos].mixRepeat;
+			}
+		}
+		m_mixFrac -= m_songInfo.hostReplayRate;
+	}
+	return int16_t(m_mixLastSample) << 7;
 }
 
 int16_t YmRenderer::ComputeNextSample()
 {
 	int16_t out = 0;
-	if (eYmType::eMIX1 != m_ymType)
+	if ((eYmType::eYMT1 == m_ymType) || (eYmType::eYMT2 == m_ymType))
+	{
+		out = ComputeNextYmTrackerSample();
+	}
+	else if (eYmType::eMIX1 == m_ymType)
+	{
+		out = ComputeNextYmMixSample();
+	}
+	else
 	{
 		out = m_ym2149.ComputeNextSample();
 
@@ -319,33 +455,6 @@ int16_t YmRenderer::ComputeNextSample()
 				}
 			}
 		}
-	}
-	else
-	{
-		// Digimix YM driver
-		const YmSample& smp = m_samples[m_mixPatternPos];
-		m_mixLastSample = m_mixBank[smp.mixStart+m_mixSamplePos];
-
-		m_mixFrac += smp.replayRate;
-		if (m_mixFrac >= m_songInfo.hostReplayRate)
-		{
-			m_mixSamplePos++;
-			if (m_mixSamplePos >= smp.len)
-			{
-				m_mixSamplePos = 0;
-				m_mixCurrentRepeat--;
-				if (m_mixCurrentRepeat <= 0)
-				{
-					m_mixPatternPos++;
-					if (m_mixPatternPos >= m_sampleCount)
-						m_mixPatternPos = 0;
-
-					m_mixCurrentRepeat = m_samples[m_mixPatternPos].repeat;
-				}
-			}
-			m_mixFrac -= m_songInfo.hostReplayRate;
-		}
-		out = int16_t(m_mixLastSample) << 7;
 	}
 	return out;
 }
@@ -450,7 +559,7 @@ uint32_t YmRenderer::YmFxDecode(int fxSlot, int regCode, int regPrediv, int regC
 
 uint8_t YmRenderer::ReadInterleaved(int reg) const
 {
-	if (m_flags&1)
+	if (m_flags&kYmInterleaved)
 		return m_dataStream[m_subSongLenInTick[0]*reg + m_tick];	// stream interleaved
 
 	return m_dataStream[m_tick * m_dataStreamStride + reg];
@@ -542,6 +651,29 @@ void YmRenderer::Ym356DriverTick()
 
 void YmRenderer::YmTrackerDriverTick()
 {
+	for (int v = 0; v < m_trkVoiceCount; v++)
+	{
+		YmTrackerVoice& voice = m_trkVoices[v];
+		uint8_t b0 = ReadInterleaved(v * 4 + 0);
+		uint8_t b1 = ReadInterleaved(v * 4 + 1);
+		voice.replayRate = (uint16_t(ReadInterleaved(v * 4 + 2)) << 8) | ReadInterleaved(v * 4 + 3);
+		if (voice.replayRate)
+		{
+			voice.replayRate = voice.replayRate << m_trkFreqShift;
+			voice.loop = (b1 & 0x40) != 0;
+			voice.volume = ((b1 & 63)*64)/63;	// convert to full range [0..64]
+			if (0xff != b0)
+			{
+				// note on
+				voice.sampleId = b0;
+				voice.samplePos = 0;
+				voice.running = true;
+				voice.innerClock = 0;
+			}
+		}
+		else
+			voice.running = false;
+	}
 }
 
 void YmRenderer::PlayerTick()
@@ -560,6 +692,9 @@ void YmRenderer::PlayerTick()
 			break;
 		case eYmType::eMIX1:	// on purpose no call, there is no player tick for YM "digimix"
 			break;
+		case eYmType::eYMT1:
+		case eYmType::eYMT2:
+			YmTrackerDriverTick();
 		default:
 			break;
 	}

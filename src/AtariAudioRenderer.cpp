@@ -62,7 +62,7 @@ AtariAudioRenderer::eFileType AtariAudioRenderer::QuickFileTypeCheck(const void*
 		const char* read8 = (const char*)rawMemory;
 		static const char* sSigns[] =
 		{
-			"YM2!","YM3!","YM3b","YM5!","YM6!","MIX1",
+			"YM2!","YM3!","YM3b","YM5!","YM6!","MIX1","YMT1","YMT2",
 			nullptr
 		};
 		const char** pr = sSigns;
